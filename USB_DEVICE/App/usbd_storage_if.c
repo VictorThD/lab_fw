@@ -21,6 +21,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "usbd_storage_if.h"
+#include "usart.h"
 
 /* USER CODE BEGIN INCLUDE */
 
@@ -64,8 +65,11 @@
   */
 
 #define STORAGE_LUN_NBR                  1
-#define STORAGE_BLK_NBR                  0x10000
-#define STORAGE_BLK_SIZ                  0x200
+#define STORAGE_BLK_NBR                  64
+// On my system - Windows 10 - setting other value
+// than 512 for this constant cause Windows
+// to not recognize the usb disk
+#define STORAGE_BLK_SIZ                  512
 
 /* USER CODE BEGIN PRIVATE_DEFINES */
 
@@ -114,6 +118,9 @@ const int8_t STORAGE_Inquirydata_FS[] = {/* 36 */
 /* USER CODE END INQUIRY_DATA_FS */
 
 /* USER CODE BEGIN PRIVATE_VARIABLES */
+
+static uint8_t g_mem_storage[STORAGE_BLK_NBR * STORAGE_BLK_SIZ];
+static char g_uart_msg[100];
 
 /* USER CODE END PRIVATE_VARIABLES */
 
@@ -178,6 +185,12 @@ USBD_StorageTypeDef USBD_Storage_Interface_fops_FS =
 int8_t STORAGE_Init_FS(uint8_t lun)
 {
   /* USER CODE BEGIN 2 */
+  // for (int i = 0; i < STORAGE_BLK_NBR * STORAGE_BLK_SIZ; i++)
+  // {
+  //   g_storage[i] = i % 10;
+  // }
+  memset(g_mem_storage, 0, STORAGE_BLK_NBR * STORAGE_BLK_SIZ);
+
   return (USBD_OK);
   /* USER CODE END 2 */
 }
@@ -194,6 +207,7 @@ int8_t STORAGE_GetCapacity_FS(uint8_t lun, uint32_t *block_num, uint16_t *block_
   /* USER CODE BEGIN 3 */
   *block_num  = STORAGE_BLK_NBR;
   *block_size = STORAGE_BLK_SIZ;
+
   return (USBD_OK);
   /* USER CODE END 3 */
 }
@@ -230,6 +244,13 @@ int8_t STORAGE_IsWriteProtected_FS(uint8_t lun)
 int8_t STORAGE_Read_FS(uint8_t lun, uint8_t *buf, uint32_t blk_addr, uint16_t blk_len)
 {
   /* USER CODE BEGIN 6 */
+  memcpy(buf, g_mem_storage + blk_addr * STORAGE_BLK_SIZ, blk_len * STORAGE_BLK_SIZ);
+  
+  sprintf(g_uart_msg, "Read FS lun: %d, blk_addr: %ld, blk_len=%d"
+    ", data: %02X%02X%02X%02X%02X%02X%02X%02X%02X%02X\n", lun, blk_addr, blk_len,
+    buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7], buf[8], buf[9]);
+  HAL_UART_Transmit(&huart1, (uint8_t *)g_uart_msg, strlen(g_uart_msg), 1000);
+
   return (USBD_OK);
   /* USER CODE END 6 */
 }
@@ -242,6 +263,13 @@ int8_t STORAGE_Read_FS(uint8_t lun, uint8_t *buf, uint32_t blk_addr, uint16_t bl
 int8_t STORAGE_Write_FS(uint8_t lun, uint8_t *buf, uint32_t blk_addr, uint16_t blk_len)
 {
   /* USER CODE BEGIN 7 */
+  memcpy(g_mem_storage + blk_addr * STORAGE_BLK_SIZ, buf, blk_len * STORAGE_BLK_SIZ);
+
+  sprintf(g_uart_msg, "Write FS lun: %d, blk_addr: %ld, blk_len=%d"
+    ", data: %02X%02X%02X%02X%02X%02X%02X%02X%02X%02X\n", lun, blk_addr, blk_len,
+    buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7], buf[8], buf[9]);
+  HAL_UART_Transmit(&huart1, (uint8_t *)g_uart_msg, strlen(g_uart_msg), 1000);
+
   return (USBD_OK);
   /* USER CODE END 7 */
 }
