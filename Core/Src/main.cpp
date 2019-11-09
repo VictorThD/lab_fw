@@ -139,9 +139,10 @@ int main(void)
 
   Blinker::getInstance().initBlinker();
 
-  MX_USB_DEVICE_Init();
   MX_FSMC_Init();
   MX_USART1_UART_Init();
+  MX_USB_DEVICE_Init();
+
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
