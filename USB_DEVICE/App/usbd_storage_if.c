@@ -469,19 +469,19 @@ static HAL_StatusTypeDef K9F1G08U0E_My_HAL_NAND_Read_Page_8b(
 
 static int8_t ReadOnePage(uint8_t *buf, uint32_t blk_addr)
 {
-  PrintMsg("Read one page. ");
-  PrintBlkAddr(blk_addr);
+  // PrintMsg("Read one page. ");
+  // PrintBlkAddr(blk_addr);
 
   uint32_t nand_blk_addr = blk_addr / LOGICAL_PAGES_IN_NAND_PAGE;
   uint32_t logical_blk_in_nand_blk = blk_addr % LOGICAL_PAGES_IN_NAND_PAGE;
-  sprintf(g_uart_msg, "nand_blk_addr: %ld, logical_blk_in_nand_blk: %ld\n",
-    nand_blk_addr, logical_blk_in_nand_blk);
-  PrintMsg(g_uart_msg);
+  // sprintf(g_uart_msg, "nand_blk_addr: %ld, logical_blk_in_nand_blk: %ld\n",
+  //   nand_blk_addr, logical_blk_in_nand_blk);
+  // PrintMsg(g_uart_msg);
 
   NAND_AddressTypeDef nand_addr;
   // GetConvertTableNandAddr(nand_blk_addr, &hnand1, &nand_addr);
   LbaBlockAddrToNandAddr(nand_blk_addr, &hnand1, &nand_addr);
-  PrintNandAddr(&nand_addr);
+  // PrintNandAddr(&nand_addr);
 
   memset(g_nand_read_write_buffer, 0, NAND_PAGE_WITH_SPARE_AREA_SIZE);
 
@@ -587,25 +587,26 @@ static int8_t WriteOnePageFull(uint8_t *buf, uint32_t blk_addr)
 {
   HAL_StatusTypeDef nand_op_state = HAL_OK;
 
-  PrintMsg("Write one page. ");
-  PrintBlkAddr(blk_addr);
-  // sprintf(g_uart_msg, "Write one page: blk_addr: %ld\n", blk_addr);
-  // HAL_UART_Transmit(&huart1, (uint8_t *)g_uart_msg, strlen(g_uart_msg), 1000);
+  // PrintMsg("Write one page. ");
+  // PrintBlkAddr(blk_addr);
+  // // sprintf(g_uart_msg, "Write one page: blk_addr: %ld\n", blk_addr);
+  // // HAL_UART_Transmit(&huart1, (uint8_t *)g_uart_msg, strlen(g_uart_msg), 1000);
 
   uint32_t nand_blk_addr = blk_addr / LOGICAL_PAGES_IN_NAND_PAGE;
   uint32_t logical_blk_in_nand_blk = blk_addr % LOGICAL_PAGES_IN_NAND_PAGE;
-  sprintf(g_uart_msg, "nand_blk_addr: %ld, logical_blk_in_nand_blk: %ld\n",
-          nand_blk_addr, logical_blk_in_nand_blk);
-  PrintMsg(g_uart_msg);
+  // sprintf(g_uart_msg, "nand_blk_addr: %ld, logical_blk_in_nand_blk: %ld\n",
+  //         nand_blk_addr, logical_blk_in_nand_blk);
+  // PrintMsg(g_uart_msg);
 
   NAND_AddressTypeDef nand_addr;
-  GetConvertTableNandAddr(nand_blk_addr, &hnand1, &nand_addr);
-  PrintNandAddr(&nand_addr);
+  // GetConvertTableNandAddr(nand_blk_addr, &hnand1, &nand_addr);
+  LbaBlockAddrToNandAddr(nand_blk_addr, &hnand1, &nand_addr);
+  // PrintNandAddr(&nand_addr);
 
   // Write page
   nand_op_state = HAL_NAND_Write_Page_8b(&hnand1, &nand_addr, g_nand_read_write_buffer, 1);
-  sprintf(g_uart_msg, "Write status: %d\n", nand_op_state);
-  PrintMsg(g_uart_msg);
+  // sprintf(g_uart_msg, "Write status: %d\n", nand_op_state);
+  // PrintMsg(g_uart_msg);
   if (nand_op_state != HAL_OK)
   {
     return (USBD_FAIL);
@@ -618,22 +619,22 @@ static int8_t EraseOneBlock(uint32_t blk_addr)
 {
   HAL_StatusTypeDef nand_op_state = HAL_OK;
 
-  PrintMsg("Erase block. ");
-  PrintBlkAddr(blk_addr);
+  // PrintMsg("Erase block. ");
+  // PrintBlkAddr(blk_addr);
 
   uint32_t nand_blk_addr = blk_addr / LOGICAL_PAGES_IN_NAND_PAGE;
-  uint32_t logical_blk_in_nand_blk = blk_addr % LOGICAL_PAGES_IN_NAND_PAGE;
-  sprintf(g_uart_msg, "nand_blk_addr: %ld, logical_blk_in_nand_blk: %ld\n",
-          nand_blk_addr, logical_blk_in_nand_blk);
-  PrintMsg(g_uart_msg);
+  // uint32_t logical_blk_in_nand_blk = blk_addr % LOGICAL_PAGES_IN_NAND_PAGE;
+  // sprintf(g_uart_msg, "nand_blk_addr: %ld, logical_blk_in_nand_blk: %ld\n",
+  //         nand_blk_addr, logical_blk_in_nand_blk);
+  // PrintMsg(g_uart_msg);
 
   NAND_AddressTypeDef nand_addr;
   // GetConvertTableNandAddr(nand_blk_addr, &hnand1, &nand_addr);
   LbaBlockAddrToNandAddr(nand_blk_addr, &hnand1, &nand_addr);
 
   nand_op_state = HAL_NAND_Erase_Block(&hnand1, &nand_addr);
-  sprintf(g_uart_msg, "Erase status: %d\n", nand_op_state);
-  PrintMsg(g_uart_msg);
+  // sprintf(g_uart_msg, "Erase status: %d\n", nand_op_state);
+  // PrintMsg(g_uart_msg);
   if (nand_op_state != HAL_OK)
   {
     return (USBD_FAIL);
@@ -644,16 +645,17 @@ static int8_t EraseOneBlock(uint32_t blk_addr)
   tickstart = HAL_GetTick();
 
   /* Read status until NAND is ready */
-  while (HAL_NAND_Read_Status(&hnand1) != NAND_READY)
+  uint32_t status;
+  while ((status = HAL_NAND_Read_Status(&hnand1)) != NAND_READY)
   {
     if ((HAL_GetTick() - tickstart) > NAND_WRITE_TIMEOUT)
     {
-      PrintMsg("Erase Timeout\n");
+      // PrintMsg("Erase Timeout\n");
       return (USBD_FAIL);
     }
   }
-  sprintf(g_uart_msg, "Erase Ok. time: %ld\n", HAL_GetTick() - tickstart);
-  PrintMsg(g_uart_msg);
+  // sprintf(g_uart_msg, "Erase Ok. time: %ld, status: 0x%lX\n", HAL_GetTick() - tickstart, status);
+  // PrintMsg(g_uart_msg);
 
   return (USBD_OK);
 }
@@ -680,7 +682,7 @@ int8_t STORAGE_Init_FS(uint8_t lun)
   // EraseOneBlock(0);
 
   uint32_t count_bytes = 8;
-  uint32_t start_number = 30;
+  uint32_t start_number = 40;
 
   // memset(g_nand_read_write_buffer, 0, NAND_PAGE_WITH_SPARE_AREA_SIZE);
   // for (uint32_t i = 0; i < 3; i++)
@@ -694,17 +696,20 @@ int8_t STORAGE_Init_FS(uint8_t lun)
   // PrintNandBuffer(g_nand_read_write_buffer);
   // WriteOnePageFull(g_nand_read_write_buffer, 0);
 
-  // memset(g_nand_read_write_buffer, 0, NAND_PAGE_WITH_SPARE_AREA_SIZE);
-  // for (uint32_t i = 0; i < count_bytes; i++)
-  //   g_nand_read_write_buffer[i] = (uint8_t)(i + start_number);
-  // for (uint32_t i = NAND_PAGE_SIZE - count_bytes; i < NAND_PAGE_SIZE; i++)
-  //   g_nand_read_write_buffer[i] = (uint8_t)(NAND_PAGE_SIZE - i - 1 + start_number);
-  // for (uint32_t i = NAND_PAGE_SIZE; i < NAND_PAGE_SIZE + count_bytes; i++)
-  //   g_nand_read_write_buffer[i] = (uint8_t)(i + start_number + 5);
-  // for (uint32_t i = NAND_PAGE_WITH_SPARE_AREA_SIZE - count_bytes; i < NAND_PAGE_WITH_SPARE_AREA_SIZE; i++)
-  //   g_nand_read_write_buffer[i] = (uint8_t)(NAND_PAGE_WITH_SPARE_AREA_SIZE - i - 1 + start_number + 5);
+  memset(g_nand_read_write_buffer, 0, NAND_PAGE_WITH_SPARE_AREA_SIZE);
+  for (uint32_t i = 0; i < count_bytes; i++)
+    g_nand_read_write_buffer[i] = (uint8_t)(i + start_number);
+  for (uint32_t i = NAND_PAGE_SIZE - count_bytes; i < NAND_PAGE_SIZE; i++)
+    g_nand_read_write_buffer[i] = (uint8_t)(NAND_PAGE_SIZE - i - 1 + start_number);
+  for (uint32_t i = NAND_PAGE_SIZE; i < NAND_PAGE_SIZE + count_bytes; i++)
+    g_nand_read_write_buffer[i] = (uint8_t)(i + start_number + 5);
+  for (uint32_t i = NAND_PAGE_WITH_SPARE_AREA_SIZE - count_bytes; i < NAND_PAGE_WITH_SPARE_AREA_SIZE; i++)
+    g_nand_read_write_buffer[i] = (uint8_t)(NAND_PAGE_WITH_SPARE_AREA_SIZE - i - 1 + start_number + 5);
   // PrintNandBuffer(g_nand_read_write_buffer);
-  // WriteOnePageFull(g_nand_read_write_buffer, 0);
+
+  EraseOneBlock(0);
+
+  WriteOnePageFull(g_nand_read_write_buffer, 0);
 
   // memset(g_nand_read_write_buffer, 0, NAND_PAGE_WITH_SPARE_AREA_SIZE);
   // for (uint32_t i = 0; i < 8; i++)
@@ -733,6 +738,10 @@ int8_t STORAGE_Init_FS(uint8_t lun)
   ReadOnePage(g_logical_buffer_r, 0);
   ReadOnePage(g_logical_buffer_r, 0 + LOGICAL_PAGES_IN_NAND_PAGE);
   ReadOnePage(g_logical_buffer_r, 0 + 2*LOGICAL_PAGES_IN_NAND_PAGE);
+
+  uint32_t nand_status = HAL_NAND_Read_Status(&hnand1);
+  sprintf(g_uart_msg, "nand_status: 0x%08lX\n", nand_status);
+  PrintMsg(g_uart_msg);
 
   // LbaBlockAddrToNandAddr(NAND_USED_ALL_PAGES - 1, &hnand1, &g_nand_last_used_page_addr);
   // sprintf(g_uart_msg, "Nand Addr: plane: %d, block: %d, page=%d\n",
