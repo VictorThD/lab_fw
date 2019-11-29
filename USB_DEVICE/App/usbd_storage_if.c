@@ -116,6 +116,8 @@
 #define LOGICAL_PAGE_SIZE 512
 #define LOGICAL_PAGES_IN_NAND_PAGE (NAND_PAGE_SIZE / LOGICAL_PAGE_SIZE)
 
+#define ATTRIBUTE_AREA ((uint32_t)0x08000000U)
+
 /* USER CODE END PRIVATE_DEFINES */
 
 #define STORAGE_LUN_NBR                  1
@@ -182,13 +184,14 @@ static uint8_t g_nand_read_write_buffer[NAND_PAGE_WITH_SPARE_AREA_SIZE];
 // static int g_flag;
 typedef struct NandMetadata
 {
+  NAND_HandleTypeDef *hnand;
   NAND_AddressTypeDef inner_config_addr;
   uint8_t *ibt;
   size_t ibt_size;
+  NAND_AddressTypeDef free_page_addr;
   NAND_AddressTypeDef att_addr;
   NAND_ADDR_TRANSLATION_TABLE_ENTRY_TYPE *att;
   size_t att_size;
-  NAND_AddressTypeDef free_page_addr;
 } NandMetadata;
 static NandMetadata g_nand_metadata;
 
@@ -259,108 +262,46 @@ static int DeserializeNandInnerConfiguration(
 static HAL_StatusTypeDef K9F1G08U0E_Erase_Block(
     NAND_HandleTypeDef *hnand, NAND_AddressTypeDef *pAddress);
 
+// Invalid block table
 static int IsNandBlockInvalid(const uint8_t *ibt, size_t ibt_size,
   const NAND_AddressTypeDef *nand_addr);
 static void SetNandBlockInvalid(uint8_t *ibt, size_t ibt_size,
   const NAND_AddressTypeDef *nand_addr);
 
-    // static void SetNandBlockUsed(uint32_t blk_addr)
-    // {
-    //   static char msg[100];
-    //   sprintf(msg, "SetNandBlockUsed: blk_addr: %ld, table before[i]: 0x%X",
-    //     blk_addr, g_nand_used_blocks_table[blk_addr / BITS_IN_BYTE]);
-    //   HAL_UART_Transmit(&huart1, (uint8_t *)msg, strlen(msg), 1000);
+// Address translation table
+static void SetAddrTranslationTableNandAddr(
+  NandMetadata *nand_metadata,
+  uint32_t lba, const NAND_AddressTypeDef *nand_addr);
+static void GetAddrTranslationTableNandAddr(
+  const NandMetadata *nand_metadata,
+  uint32_t lba, NAND_AddressTypeDef* nand_addr);
 
-    //   g_nand_used_blocks_table[blk_addr / BITS_IN_BYTE] |= (uint8_t)(1 << (blk_addr % 8));
-
-    //   sprintf(msg, ", table after[i]: %0x",
-    //     g_nand_used_blocks_table[blk_addr / BITS_IN_BYTE]);
-    //   HAL_UART_Transmit(&huart1, (uint8_t *)msg, strlen(msg), 1000);
-    // }
-
-    // static void ClearNandBlockUsed(uint32_t blk_addr)
-    // {
-    //   g_nand_used_blocks_table[blk_addr / BITS_IN_BYTE] &= (uint8_t)(~(1 << (blk_addr % 8)));
-    // }
-/*
-static void LbaBlockAddrToNandAddr(uint32_t blk_addr,
-  NAND_HandleTypeDef *hnand, NAND_AddressTypeDef *nand_addr)
-{
-  uint32_t pagesInPlane = hnand->Config.PlaneSize * hnand->Config.BlockSize;
-  nand_addr->Plane = blk_addr / pagesInPlane;
-  blk_addr %= pagesInPlane;
-  uint32_t pagesInBlock = hnand->Config.BlockSize;
-  nand_addr->Block = blk_addr / pagesInBlock;
-  nand_addr->Page = blk_addr % pagesInBlock;
-}
-*/
 static void GetAddrTranslationTableEntryNandAddr(
-    NAND_ADDR_TRANSLATION_TABLE_ENTRY_TYPE att_entry,
-    NAND_AddressTypeDef* nand_addr)
-{
-  nand_addr->Plane = 0;
-  nand_addr->Block = ((att_entry & NAND_ADDR_TRANSLATION_TABLE_ENTRY_BLOCK_BITS_MASK)
-      >> NAND_ADDR_TRANSLATION_TABLE_ENTRY_PAGE_BITS_COUNT);
-  nand_addr->Page = (att_entry & NAND_ADDR_TRANSLATION_TABLE_ENTRY_PAGE_BITS_MASK);
-}
-
+  NAND_ADDR_TRANSLATION_TABLE_ENTRY_TYPE att_entry,
+  NAND_AddressTypeDef* nand_addr);
 static NAND_AddressTypeDef AddrTranslationTableEntryToNandAddr(
-  NAND_ADDR_TRANSLATION_TABLE_ENTRY_TYPE att_entry)
-{
-  NAND_AddressTypeDef nand_addr;
-  GetAddrTranslationTableEntryNandAddr(att_entry, &nand_addr);
-
-  return nand_addr;
-}
+  NAND_ADDR_TRANSLATION_TABLE_ENTRY_TYPE att_entry);
 
 static void GetNandAddrAddrTranslationTableEntry(
   const NAND_AddressTypeDef* nand_addr,
-  NAND_ADDR_TRANSLATION_TABLE_ENTRY_TYPE* att_entry)
-{
-  *att_entry = ((nand_addr->Block << NAND_ADDR_TRANSLATION_TABLE_ENTRY_PAGE_BITS_COUNT)
-      | nand_addr->Page);
-}
-
+  NAND_ADDR_TRANSLATION_TABLE_ENTRY_TYPE* att_entry);
 static NAND_ADDR_TRANSLATION_TABLE_ENTRY_TYPE NandAddrToAddrTranslationTableEntry(
-    const NAND_AddressTypeDef *nand_addr)
-{
-  NAND_ADDR_TRANSLATION_TABLE_ENTRY_TYPE att_entry;
-  GetNandAddrAddrTranslationTableEntry(nand_addr, &att_entry);
+  const NAND_AddressTypeDef *nand_addr);
 
-  return att_entry;
-}
+// LBA to NAND address conversion
 
-/*
-static void SetConvertTableNandAddr(uint32_t blk_addr, NAND_AddressTypeDef* nand_addr)
-{
-  g_nand_addr_translation_table[blk_addr] =
-    NandAddrToAddrTranslationTableEntry(nand_addr);
-  NAND_ADDR_TRANSLATION_TABLE_ENTRY_TYPE entry =
-    g_nand_addr_translation_table[blk_addr];
-  sprintf(g_uart_msg, "SetConvertTableNandAddr: blk_addr: %ld, entry: 0x%02X\n",
-    blk_addr, entry);
-  HAL_UART_Transmit(&huart1, (uint8_t *)g_uart_msg, strlen(g_uart_msg), 1000);
-}
+static void LbaToNandAddr(NAND_HandleTypeDef *hnand,
+  uint32_t lba, NAND_AddressTypeDef *nand_addr);
 
-static void GetConvertTableNandAddr(uint32_t blk_addr,
-  NAND_HandleTypeDef *hnand, NAND_AddressTypeDef* nand_addr)
-{
-  NAND_ADDR_TRANSLATION_TABLE_ENTRY_TYPE entry =
-      g_nand_addr_translation_table[blk_addr];
-  sprintf(g_uart_msg, "GetConvertTableNandAddr: blk_addr: %ld, entry: 0x%02X\n",
-    blk_addr, entry);
-  HAL_UART_Transmit(&huart1, (uint8_t *)g_uart_msg, strlen(g_uart_msg), 1000);
+// Log
 
-  if (entry == 0)
-  {
-    LbaBlockAddrToNandAddr(blk_addr, hnand, nand_addr);
-  }
-  else
-  {
-    GetAddrTranslationTableEntryNandAddr(entry, nand_addr);
-  }
-}
-*/
+static void PrintMsg(const char* msg);
+// static void PrintLba(uint32_t lba);
+static void PrintNandAddr(const NAND_AddressTypeDef *nand_addr);
+// static void PrintNandOpStatus(NAND_AddressTypeDef *nand_addr);
+static void PrintNandBuffer(const uint8_t *buf);
+static void PrintNandBufferSpareArea(const uint8_t *buf);
+
 /* USER CODE END PRIVATE_FUNCTIONS_DECLARATION */
 
 /**
@@ -379,246 +320,57 @@ USBD_StorageTypeDef USBD_Storage_Interface_fops_FS =
   (int8_t *)STORAGE_Inquirydata_FS
 };
 
-static void PrintMsg(const char* msg)
+static HAL_StatusTypeDef ReadOnePage(NandMetadata *nand_metadata,
+  uint32_t storage_lba, uint8_t *buf)
 {
-  HAL_UART_Transmit(&huart1, (uint8_t *)msg, strlen(msg), 1000);
-}
+  HAL_StatusTypeDef status = HAL_OK;
 
-// static void PrintBlkAddr(uint32_t blk_addr)
-// {
-//   sprintf(g_uart_msg, "blk_addr: %ld\n", blk_addr);
-//   HAL_UART_Transmit(&huart1, (uint8_t *)g_uart_msg, strlen(g_uart_msg), 1000);
-// }
+  PrintMsg("Read one page. ");
 
-static void PrintNandAddr(NAND_AddressTypeDef *nand_addr)
-{
-  sprintf(g_uart_msg, "NAND addr. plane: %d, block: %d, page=%d",
-    nand_addr->Plane, nand_addr->Block, nand_addr->Page);
-  HAL_UART_Transmit(&huart1, (uint8_t *)g_uart_msg, strlen(g_uart_msg), 1000);
-}
+  uint32_t lba = storage_lba / LOGICAL_PAGES_IN_NAND_PAGE;
+  uint32_t storage_lba_in_lba = storage_lba % LOGICAL_PAGES_IN_NAND_PAGE;
+  sprintf(g_uart_msg, "storage_lba: %ld, lba: %ld, storage_lba_in_lba: %ld\n",
+    storage_lba, lba, storage_lba_in_lba);
+  PrintMsg(g_uart_msg);
 
-// static void PrintNandOpStatus(NAND_AddressTypeDef *nand_addr)
-// {
-//   sprintf(g_uart_msg, "Nand Addr. plane: %d, block: %d, page=%d\n",
-//           nand_addr->Plane, nand_addr->Block, nand_addr->Page);
-//   HAL_UART_Transmit(&huart1, (uint8_t *)g_uart_msg, strlen(g_uart_msg), 1000);
-// }
+  NAND_AddressTypeDef nand_addr;
+  GetAddrTranslationTableNandAddr(nand_metadata, lba, &nand_addr);
+  // LbaBlockAddrToNandAddr(nand_blk_addr, &hnand1, &nand_addr);
+  PrintNandAddr(&nand_addr);
+  PrintMsg("\n");
 
-static void PrintNandBuffer(uint8_t *buf)
-{
-  sprintf(g_uart_msg, "Page: %02X%02X%02X%02X%02X%02X%02X%02X%02X%02X %02X%02X%02X%02X%02X%02X%02X%02X%02X%02X"
-                      ", spare: %02X%02X%02X%02X%02X%02X%02X%02X%02X%02X %02X%02X%02X%02X%02X%02X%02X%02X%02X%02X\n",
-          buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7], buf[8], buf[9],
-          buf[NAND_PAGE_SIZE - 10], buf[NAND_PAGE_SIZE - 9], buf[NAND_PAGE_SIZE - 8], buf[NAND_PAGE_SIZE - 7], buf[NAND_PAGE_SIZE - 6], buf[NAND_PAGE_SIZE - 5], buf[NAND_PAGE_SIZE - 4], buf[NAND_PAGE_SIZE - 3], buf[NAND_PAGE_SIZE - 2], buf[NAND_PAGE_SIZE - 1],
-          buf[NAND_PAGE_SIZE], buf[NAND_PAGE_SIZE + 1], buf[NAND_PAGE_SIZE + 2], buf[NAND_PAGE_SIZE + 3], buf[NAND_PAGE_SIZE + 4], buf[NAND_PAGE_SIZE + 5], buf[NAND_PAGE_SIZE + 6], buf[NAND_PAGE_SIZE + 7], buf[NAND_PAGE_SIZE + 8], buf[NAND_PAGE_SIZE + 9],
-          buf[NAND_PAGE_WITH_SPARE_AREA_SIZE - 10], buf[NAND_PAGE_WITH_SPARE_AREA_SIZE - 9], buf[NAND_PAGE_WITH_SPARE_AREA_SIZE - 8], buf[NAND_PAGE_WITH_SPARE_AREA_SIZE - 7], buf[NAND_PAGE_WITH_SPARE_AREA_SIZE - 6], buf[NAND_PAGE_WITH_SPARE_AREA_SIZE - 5], buf[NAND_PAGE_WITH_SPARE_AREA_SIZE - 4], buf[NAND_PAGE_WITH_SPARE_AREA_SIZE - 3], buf[NAND_PAGE_WITH_SPARE_AREA_SIZE - 2], buf[NAND_PAGE_WITH_SPARE_AREA_SIZE - 1]);
-  HAL_UART_Transmit(&huart1, (uint8_t *)g_uart_msg, strlen(g_uart_msg), 1000);
-  int bound = NAND_PAGE_WITH_SPARE_AREA_SIZE;
-  for (int i = 0; i < bound; i++)
+  memset(g_nand_read_write_buffer, 0, NAND_PAGE_WITH_SPARE_AREA_SIZE);
+
+  status = HAL_NAND_Read_Page_8b(nand_metadata->hnand, &nand_addr,
+    g_nand_read_write_buffer, 1);
+  // HAL_StatusTypeDef state = K9F1G08U0E_My_HAL_NAND_Read_Page_8b(&hnand1, &nand_addr, g_nand_read_write_buffer, 1);
+  sprintf(g_uart_msg, "Read status: %d\n", status);
+  PrintMsg(g_uart_msg);
+  if (status != HAL_OK)
   {
-    if (buf[i] != 0x30)  
-    {
-      int count = 10;
-      int lowi = ((i - count >= 0) ? (i - count) : 0);
-      int highi = ((i + count < bound) ? (i + count) : (bound - 1));
-      sprintf(g_uart_msg, "Found index: %d, ", i);
-      HAL_UART_Transmit(&huart1, (uint8_t *)g_uart_msg, strlen(g_uart_msg), 1000);
-      for (int j = lowi; j <= highi; j++)
-      {
-        sprintf(g_uart_msg, "%02X", buf[j]);
-        HAL_UART_Transmit(&huart1, (uint8_t *)g_uart_msg, strlen(g_uart_msg), 1000);
-      }
-      PrintMsg("\n");
-      break;
-    }
+    return status;
   }
+
+  memcpy(buf, g_nand_read_write_buffer + storage_lba_in_lba * LOGICAL_PAGE_SIZE, LOGICAL_PAGE_SIZE);
+
+  // PrintNandBuffer(g_nand_read_write_buffer);
+  sprintf(g_uart_msg, "Read bytes: %02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X\n", buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7], buf[8], buf[9], buf[10], buf[11], buf[12], buf[13], buf[14], buf[15], buf[16], buf[17], buf[18], buf[19]);
+  PrintMsg(g_uart_msg);
+
+  // memset(g_nand_read_write_buffer, 0, NAND_PAGE_WITH_SPARE_AREA_SIZE);
+
+  // state = HAL_NAND_Read_SpareArea_8b(&hnand1, &nand_addr, g_nand_read_write_buffer, 1);
+  // sprintf(g_uart_msg, "Read spare area status: %d\n", state);
+  // PrintMsg(g_uart_msg);
+  // if (state != HAL_OK)
+  // {
+  //   return (USBD_FAIL);
+  // }
+
+  // PrintNandBufferSpareArea(g_nand_read_write_buffer);
+
+  return HAL_OK;
 }
-
-static void PrintNandBufferSpareArea(uint8_t *buf)
-{
-  sprintf(g_uart_msg, "Spare: %02X%02X%02X%02X%02X%02X%02X%02X%02X%02X %02X%02X%02X%02X%02X%02X%02X%02X%02X%02X\n",
-          buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7], buf[8], buf[9],
-          buf[NAND_SPARE_AREA_SIZE - 10], buf[NAND_SPARE_AREA_SIZE - 9], buf[NAND_SPARE_AREA_SIZE - 8], buf[NAND_SPARE_AREA_SIZE - 7], buf[NAND_SPARE_AREA_SIZE - 6], buf[NAND_SPARE_AREA_SIZE - 5], buf[NAND_SPARE_AREA_SIZE - 4], buf[NAND_SPARE_AREA_SIZE - 3], buf[NAND_SPARE_AREA_SIZE - 2], buf[NAND_SPARE_AREA_SIZE - 1]);
-  HAL_UART_Transmit(&huart1, (uint8_t *)g_uart_msg, strlen(g_uart_msg), 1000);
-  int bound = NAND_SPARE_AREA_SIZE;
-  for (int i = 0; i < bound; i++)
-  {
-    if (buf[i] != 0x30)
-    {
-      int count = 10;
-      int lowi = ((i - count >= 0) ? (i - count) : 0);
-      int highi = ((i + count < bound) ? (i + count) : (bound - 1));
-      sprintf(g_uart_msg, "Found index: %d, ", i);
-      HAL_UART_Transmit(&huart1, (uint8_t *)g_uart_msg, strlen(g_uart_msg), 1000);
-      for (int j = lowi; j <= highi; j++)
-      {
-        sprintf(g_uart_msg, "%02X", buf[j]);
-        HAL_UART_Transmit(&huart1, (uint8_t *)g_uart_msg, strlen(g_uart_msg), 1000);
-      }
-      PrintMsg("\n");
-      break;
-    }
-  }
-}
-
-#define ATTRIBUTE_AREA ((uint32_t)0x08000000U)
-
-// static HAL_StatusTypeDef K9F1G08U0E_My_HAL_NAND_Read_Page_8b(
-//   NAND_HandleTypeDef *hnand, NAND_AddressTypeDef *pAddress, uint8_t *pBuffer, uint32_t NumPageToRead)
-// {
-//   uint32_t index;
-//   uint32_t tickstart;
-//   uint32_t deviceAddress, numPagesRead = 0U, nandAddress, nbpages = NumPageToRead;
-//   uint8_t *buff = pBuffer;
-
-//   /* Check the NAND controller state */
-//   if (hnand->State == HAL_NAND_STATE_BUSY)
-//   {
-//     return HAL_BUSY;
-//   }
-//   else if (hnand->State == HAL_NAND_STATE_READY)
-//   {
-//     /* Process Locked */
-//     __HAL_LOCK(hnand);
-
-//     /* Update the NAND controller state */
-//     hnand->State = HAL_NAND_STATE_BUSY;
-
-//     /* Identify the device address */
-//     if (hnand->Init.NandBank == FSMC_NAND_BANK2)
-//     {
-//       deviceAddress = NAND_DEVICE1;
-//     }
-//     else
-//     {
-//       deviceAddress = NAND_DEVICE2;
-//     }
-
-//     /* NAND raw address calculation */
-//     nandAddress = ARRAY_ADDRESS(pAddress, hnand);
-
-//     /* Page(s) read loop */
-//     while ((nbpages != 0U) && (nandAddress < ((hnand->Config.BlockSize) * (hnand->Config.BlockNbr))))
-//     {
-//       /* Send read page command sequence */
-//       *(__IO uint8_t *)((uint32_t)(deviceAddress | CMD_AREA)) = NAND_CMD_AREA_A;
-//       __DSB();
-
-//       *(__IO uint8_t *)((uint32_t)(deviceAddress | ADDR_AREA)) = 0x00U;
-//       __DSB();
-//       *(__IO uint8_t *)((uint32_t)(deviceAddress | ADDR_AREA)) = 0x00U;
-//       __DSB();
-//       *(__IO uint8_t *)((uint32_t)(deviceAddress | ADDR_AREA)) = ADDR_1ST_CYCLE(nandAddress);
-//       __DSB();
-//       *(__IO uint8_t *)((uint32_t)(deviceAddress | ADDR_AREA)) = ADDR_2ND_CYCLE(nandAddress);
-//       __DSB();
-
-//       *(__IO uint8_t *)((uint32_t)(deviceAddress | ATTRIBUTE_AREA | CMD_AREA)) = NAND_CMD_AREA_TRUE1;
-//       __DSB();
-
-//       if (hnand->Config.ExtraCommandEnable == ENABLE)
-//       {
-//         /* Get tick */
-//         tickstart = HAL_GetTick();
-
-//         /* Read status until NAND is ready */
-//         while (HAL_NAND_Read_Status(hnand) != NAND_READY)
-//         {
-//           if ((HAL_GetTick() - tickstart) > NAND_WRITE_TIMEOUT)
-//           {
-//             /* Update the NAND controller state */
-//             hnand->State = HAL_NAND_STATE_ERROR;
-
-//             /* Process unlocked */
-//             __HAL_UNLOCK(hnand);
-
-//             return HAL_TIMEOUT;
-//           }
-//         }
-
-//         /* Go back to read mode */
-//         *(__IO uint8_t *)((uint32_t)(deviceAddress | CMD_AREA)) = ((uint8_t)0x00U);
-//         __DSB();
-//       }
-
-//       /* Get Data into Buffer */
-//       for (index = 0U; index < hnand->Config.PageSize; index++)
-//       {
-//         *buff = *(uint8_t *)deviceAddress;
-//         buff++;
-//       }
-
-//       /* Increment read pages number */
-//       numPagesRead++;
-
-//       /* Decrement pages to read */
-//       nbpages--;
-
-//       /* Increment the NAND address */
-//       nandAddress = (uint32_t)(nandAddress + 1U);
-//     }
-
-//     /* Update the NAND controller state */
-//     hnand->State = HAL_NAND_STATE_READY;
-
-//     /* Process unlocked */
-//     __HAL_UNLOCK(hnand);
-//   }
-//   else
-//   {
-//     return HAL_ERROR;
-//   }
-
-//   return HAL_OK;
-// }
-
-// static int8_t ReadOnePage(uint8_t *buf, uint32_t blk_addr)
-// {
-//   // PrintMsg("Read one page. ");
-//   // PrintBlkAddr(blk_addr);
-
-//   uint32_t nand_blk_addr = blk_addr / LOGICAL_PAGES_IN_NAND_PAGE;
-//   uint32_t logical_blk_in_nand_blk = blk_addr % LOGICAL_PAGES_IN_NAND_PAGE;
-//   // sprintf(g_uart_msg, "nand_blk_addr: %ld, logical_blk_in_nand_blk: %ld\n",
-//   //   nand_blk_addr, logical_blk_in_nand_blk);
-//   // PrintMsg(g_uart_msg);
-
-//   NAND_AddressTypeDef nand_addr;
-//   // GetConvertTableNandAddr(nand_blk_addr, &hnand1, &nand_addr);
-//   LbaBlockAddrToNandAddr(nand_blk_addr, &hnand1, &nand_addr);
-//   // PrintNandAddr(&nand_addr);
-
-//   memset(g_nand_read_write_buffer, 0, NAND_PAGE_WITH_SPARE_AREA_SIZE);
-
-//   HAL_StatusTypeDef state = HAL_NAND_Read_Page_8b(&hnand1, &nand_addr, g_nand_read_write_buffer, 1);
-//   // HAL_StatusTypeDef state = K9F1G08U0E_My_HAL_NAND_Read_Page_8b(&hnand1, &nand_addr, g_nand_read_write_buffer, 1);
-//   sprintf(g_uart_msg, "Read status: %d\n", state);
-//   PrintMsg(g_uart_msg);
-//   if (state != HAL_OK)
-//   {
-//     return (USBD_FAIL);
-//   }
-
-//   memcpy(buf, g_nand_read_write_buffer + logical_blk_in_nand_blk * LOGICAL_PAGE_SIZE, LOGICAL_PAGE_SIZE);
-
-//   PrintNandBuffer(g_nand_read_write_buffer);
-//   // sprintf(g_uart_msg, "Read bytes: %02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X\n", buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7], buf[8], buf[9], buf[10], buf[11], buf[12], buf[13], buf[14], buf[15], buf[16], buf[17], buf[18], buf[19]);
-//   // HAL_UART_Transmit(&huart1, (uint8_t *)g_uart_msg, strlen(g_uart_msg), 1000);
-
-//   memset(g_nand_read_write_buffer, 0, NAND_PAGE_WITH_SPARE_AREA_SIZE);
-
-//   state = HAL_NAND_Read_SpareArea_8b(&hnand1, &nand_addr, g_nand_read_write_buffer, 1);
-//   sprintf(g_uart_msg, "Read spare area status: %d\n", state);
-//   PrintMsg(g_uart_msg);
-//   if (state != HAL_OK)
-//   {
-//     return (USBD_FAIL);
-//   }
-
-//   PrintNandBufferSpareArea(g_nand_read_write_buffer);
-
-//   return (USBD_OK);
-// }
 
 // static int8_t WriteOnePage(uint8_t *buf, uint32_t blk_addr)
 // {
@@ -784,6 +536,7 @@ int8_t STORAGE_Init_FS(uint8_t lun)
   NAND_AddressTypeDef nand_addr = {0};
   // Initialize with default values.
   // Some values can be changed during loading metadata further
+  g_nand_metadata.hnand = &hnand1;
   g_nand_metadata.free_page_addr = nand_addr;
   nand_addr.Block = NAND_ADDR_TRANSLATION_TABLE_BLOCK_INDEX;
   g_nand_metadata.att_addr = nand_addr;
@@ -964,9 +717,6 @@ int8_t STORAGE_IsWriteProtected_FS(uint8_t lun)
   /* USER CODE END 5 */
 }
 
-
-
-
 /**
   * @brief  .
   * @param  lun: .
@@ -994,9 +744,13 @@ int8_t STORAGE_Read_FS(uint8_t lun, uint8_t *buf, uint32_t blk_addr, uint16_t bl
 
   // return (USBD_OK);
 
-  // sprintf(g_uart_msg, "Read FS lun: %d, blk_addr: %ld, blk_len=%d\n", lun, blk_addr, blk_len);
-  // PrintMsg(g_uart_msg);
+  sprintf(g_uart_msg, "Read FS lun: %d, blk_addr: %ld, blk_len=%d\n", lun, blk_addr, blk_len);
+  PrintMsg(g_uart_msg);
 
+  for (size_t i = 0; i < blk_len; i++)
+  {
+    ReadOnePage(&g_nand_metadata, blk_addr, buf + i * LOGICAL_PAGE_SIZE);
+  }
   // uint32_t nand_blk_addr = blk_addr / LOGICAL_PAGES_IN_NAND_PAGE;
   // uint32_t logical_blk_in_nand_blk = blk_addr % LOGICAL_PAGES_IN_NAND_PAGE;
   // sprintf(g_uart_msg, "nand_blk_addr: %ld, logical_blk_in_nand_blk: %ld\n",
@@ -1459,18 +1213,20 @@ static int DeserializeNandInnerConfiguration(
   return 0;
 }
 
-// static int IsNandBlockInvalid(const uint8_t *ibt, size_t ibt_size,
-//   const NAND_AddressTypeDef *nand_addr)
-// {
-//   if ((nand_addr->Block / BITS_IN_BYTE) >= ibt_size)
-//   {
-//     PrintMsg("IsNandBlockInvalid() error: block number is out of range\n");
-//     return 0;
-//   }
+// Invalid block table
 
-//   return (int)((ibt[nand_addr->Block / BITS_IN_BYTE]
-//       >> (nand_addr->Block % BITS_IN_BYTE)) & 0x01);
-// }
+static int IsNandBlockInvalid(const uint8_t *ibt, size_t ibt_size,
+  const NAND_AddressTypeDef *nand_addr)
+{
+  if ((nand_addr->Block / BITS_IN_BYTE) >= ibt_size)
+  {
+    PrintMsg("IsNandBlockInvalid() error: block number is out of range\n");
+    return 0;
+  }
+
+  return (int)((ibt[nand_addr->Block / BITS_IN_BYTE]
+      >> (nand_addr->Block % BITS_IN_BYTE)) & 0x01);
+}
 
 static void SetNandBlockInvalid(uint8_t *ibt, size_t ibt_size,
   const NAND_AddressTypeDef *nand_addr)
@@ -1487,6 +1243,330 @@ static void SetNandBlockInvalid(uint8_t *ibt, size_t ibt_size,
   ibt[nand_addr->Block / BITS_IN_BYTE] =
     (uint8_t)(1 << (nand_addr->Block % BITS_IN_BYTE));
 }
+
+// Address translation table
+
+static void SetAddrTranslationTableNandAddr(
+  NandMetadata *nand_metadata,
+  uint32_t lba, const NAND_AddressTypeDef *nand_addr)
+{
+  // assert
+  if (lba >= NAND_USED_PAGE_NUMBER)
+  {
+    sprintf(g_uart_msg, "SetAddrTranlationTableNandAddr() error: "
+      "lba is out of range. lba: %ld, max_lba: %d\n",
+      lba, NAND_USED_PAGE_NUMBER);
+
+    return;
+  }
+
+  nand_metadata->att[lba] =
+    NandAddrToAddrTranslationTableEntry(nand_addr);
+
+  // Log
+  // sprintf(g_uart_msg, "SetAddrTranlationTableNandAddr(): lba: %ld, entry: 0x%04X\n",
+  //   lba, nand_metadata->att[lba]);
+  sprintf(g_uart_msg, "SetAddrTranlationTableNandAddr(): lba: %ld, ", lba);
+  PrintMsg(g_uart_msg);
+  PrintNandAddr(nand_addr);
+  sprintf(g_uart_msg, ", entry: 0x%04X\n", nand_metadata->att[lba]);
+  PrintMsg(g_uart_msg);
+}
+
+static void GetAddrTranslationTableNandAddr(
+  const NandMetadata *nand_metadata,
+  uint32_t lba, NAND_AddressTypeDef* nand_addr)
+{
+  // assert
+  if (lba >= NAND_USED_PAGE_NUMBER)
+  {
+    sprintf(g_uart_msg, "GetAddrTranlationTableNandAddr() error: "
+      "lba is out of range. lba: %ld, max_lba: %d\n",
+      lba, NAND_USED_PAGE_NUMBER);
+
+    return;
+  }
+
+  // if (entry == 0)
+  // {
+  //   LbaBlockAddrToNandAddr(blk_addr, hnand, nand_addr);
+  // }
+  // else
+  // {
+    GetAddrTranslationTableEntryNandAddr(nand_metadata->att[lba], nand_addr);
+  // }
+
+  sprintf(g_uart_msg, "GetAddrTranlationTableNandAddr(): lba: %ld, entry: 0x%04X, ",
+    lba, nand_metadata->att[lba]);
+  PrintMsg(g_uart_msg);
+  PrintNandAddr(nand_addr);
+  PrintMsg("\n");
+}
+
+static void GetAddrTranslationTableEntryNandAddr(
+  NAND_ADDR_TRANSLATION_TABLE_ENTRY_TYPE att_entry,
+  NAND_AddressTypeDef* nand_addr)
+{
+  nand_addr->Plane = 0;
+  nand_addr->Block = ((att_entry & NAND_ADDR_TRANSLATION_TABLE_ENTRY_BLOCK_BITS_MASK)
+      >> NAND_ADDR_TRANSLATION_TABLE_ENTRY_PAGE_BITS_COUNT);
+  nand_addr->Page = (att_entry & NAND_ADDR_TRANSLATION_TABLE_ENTRY_PAGE_BITS_MASK);
+}
+
+static NAND_AddressTypeDef AddrTranslationTableEntryToNandAddr(
+  NAND_ADDR_TRANSLATION_TABLE_ENTRY_TYPE att_entry)
+{
+  NAND_AddressTypeDef nand_addr;
+  GetAddrTranslationTableEntryNandAddr(att_entry, &nand_addr);
+
+  return nand_addr;
+}
+
+static void GetNandAddrAddrTranslationTableEntry(
+  const NAND_AddressTypeDef* nand_addr,
+  NAND_ADDR_TRANSLATION_TABLE_ENTRY_TYPE* att_entry)
+{
+  *att_entry = ((nand_addr->Block << NAND_ADDR_TRANSLATION_TABLE_ENTRY_PAGE_BITS_COUNT)
+      | nand_addr->Page);
+}
+
+static NAND_ADDR_TRANSLATION_TABLE_ENTRY_TYPE NandAddrToAddrTranslationTableEntry(
+    const NAND_AddressTypeDef *nand_addr)
+{
+  NAND_ADDR_TRANSLATION_TABLE_ENTRY_TYPE att_entry;
+  GetNandAddrAddrTranslationTableEntry(nand_addr, &att_entry);
+
+  return att_entry;
+}
+
+// LBA to NAND address conversion
+
+static void LbaToNandAddr(NAND_HandleTypeDef *hnand,
+  uint32_t lba, NAND_AddressTypeDef *nand_addr)
+{
+  uint32_t pagesInPlane = hnand->Config.PlaneSize * hnand->Config.BlockSize;
+  nand_addr->Plane = lba / pagesInPlane;
+  lba %= pagesInPlane;
+  uint32_t pagesInBlock = hnand->Config.BlockSize;
+  nand_addr->Block = lba / pagesInBlock;
+  nand_addr->Page = lba % pagesInBlock;
+}
+
+// Log
+
+static void PrintMsg(const char* msg)
+{
+  HAL_UART_Transmit(&huart1, (uint8_t *)msg, strlen(msg), 1000);
+}
+
+// static void PrintBlkAddr(uint32_t blk_addr)
+// {
+//   sprintf(g_uart_msg, "blk_addr: %ld\n", blk_addr);
+//   HAL_UART_Transmit(&huart1, (uint8_t *)g_uart_msg, strlen(g_uart_msg), 1000);
+// }
+
+static void PrintNandAddr(const NAND_AddressTypeDef *nand_addr)
+{
+  sprintf(g_uart_msg, "NAND addr. plane: %d, block: %d, page=%d",
+    nand_addr->Plane, nand_addr->Block, nand_addr->Page);
+  PrintMsg(g_uart_msg);
+}
+
+// static void PrintNandOpStatus(NAND_AddressTypeDef *nand_addr)
+// {
+//   sprintf(g_uart_msg, "Nand Addr. plane: %d, block: %d, page=%d\n",
+//           nand_addr->Plane, nand_addr->Block, nand_addr->Page);
+//   HAL_UART_Transmit(&huart1, (uint8_t *)g_uart_msg, strlen(g_uart_msg), 1000);
+// }
+
+static void PrintNandBuffer(const uint8_t *buf)
+{
+  sprintf(g_uart_msg, "Page: %02X%02X%02X%02X%02X%02X%02X%02X%02X%02X %02X%02X%02X%02X%02X%02X%02X%02X%02X%02X"
+                      ", spare: %02X%02X%02X%02X%02X%02X%02X%02X%02X%02X %02X%02X%02X%02X%02X%02X%02X%02X%02X%02X\n",
+    buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7], buf[8], buf[9],
+    buf[NAND_PAGE_SIZE - 10], buf[NAND_PAGE_SIZE - 9], buf[NAND_PAGE_SIZE - 8], buf[NAND_PAGE_SIZE - 7], buf[NAND_PAGE_SIZE - 6], buf[NAND_PAGE_SIZE - 5], buf[NAND_PAGE_SIZE - 4], buf[NAND_PAGE_SIZE - 3], buf[NAND_PAGE_SIZE - 2], buf[NAND_PAGE_SIZE - 1],
+    buf[NAND_PAGE_SIZE], buf[NAND_PAGE_SIZE + 1], buf[NAND_PAGE_SIZE + 2], buf[NAND_PAGE_SIZE + 3], buf[NAND_PAGE_SIZE + 4], buf[NAND_PAGE_SIZE + 5], buf[NAND_PAGE_SIZE + 6], buf[NAND_PAGE_SIZE + 7], buf[NAND_PAGE_SIZE + 8], buf[NAND_PAGE_SIZE + 9],
+    buf[NAND_PAGE_WITH_SPARE_AREA_SIZE - 10], buf[NAND_PAGE_WITH_SPARE_AREA_SIZE - 9], buf[NAND_PAGE_WITH_SPARE_AREA_SIZE - 8], buf[NAND_PAGE_WITH_SPARE_AREA_SIZE - 7], buf[NAND_PAGE_WITH_SPARE_AREA_SIZE - 6], buf[NAND_PAGE_WITH_SPARE_AREA_SIZE - 5], buf[NAND_PAGE_WITH_SPARE_AREA_SIZE - 4], buf[NAND_PAGE_WITH_SPARE_AREA_SIZE - 3], buf[NAND_PAGE_WITH_SPARE_AREA_SIZE - 2], buf[NAND_PAGE_WITH_SPARE_AREA_SIZE - 1]);
+  HAL_UART_Transmit(&huart1, (uint8_t *)g_uart_msg, strlen(g_uart_msg), 1000);
+  int bound = NAND_PAGE_WITH_SPARE_AREA_SIZE;
+  for (int i = 0; i < bound; i++)
+  {
+    if (buf[i] != 0x30)  
+    {
+      int count = 10;
+      int lowi = ((i - count >= 0) ? (i - count) : 0);
+      int highi = ((i + count < bound) ? (i + count) : (bound - 1));
+      sprintf(g_uart_msg, "Found index: %d, ", i);
+      HAL_UART_Transmit(&huart1, (uint8_t *)g_uart_msg, strlen(g_uart_msg), 1000);
+      for (int j = lowi; j <= highi; j++)
+      {
+        sprintf(g_uart_msg, "%02X", buf[j]);
+        HAL_UART_Transmit(&huart1, (uint8_t *)g_uart_msg, strlen(g_uart_msg), 1000);
+      }
+      PrintMsg("\n");
+      break;
+    }
+  }
+}
+
+static void PrintNandBufferSpareArea(const uint8_t *buf)
+{
+  sprintf(g_uart_msg, "Spare: %02X%02X%02X%02X%02X%02X%02X%02X%02X%02X %02X%02X%02X%02X%02X%02X%02X%02X%02X%02X\n",
+    buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7], buf[8], buf[9],
+    buf[NAND_SPARE_AREA_SIZE - 10], buf[NAND_SPARE_AREA_SIZE - 9], buf[NAND_SPARE_AREA_SIZE - 8], buf[NAND_SPARE_AREA_SIZE - 7], buf[NAND_SPARE_AREA_SIZE - 6], buf[NAND_SPARE_AREA_SIZE - 5], buf[NAND_SPARE_AREA_SIZE - 4], buf[NAND_SPARE_AREA_SIZE - 3], buf[NAND_SPARE_AREA_SIZE - 2], buf[NAND_SPARE_AREA_SIZE - 1]);
+  HAL_UART_Transmit(&huart1, (uint8_t *)g_uart_msg, strlen(g_uart_msg), 1000);
+  int bound = NAND_SPARE_AREA_SIZE;
+  for (int i = 0; i < bound; i++)
+  {
+    if (buf[i] != 0x30)
+    {
+      int count = 10;
+      int lowi = ((i - count >= 0) ? (i - count) : 0);
+      int highi = ((i + count < bound) ? (i + count) : (bound - 1));
+      sprintf(g_uart_msg, "Found index: %d, ", i);
+      HAL_UART_Transmit(&huart1, (uint8_t *)g_uart_msg, strlen(g_uart_msg), 1000);
+      for (int j = lowi; j <= highi; j++)
+      {
+        sprintf(g_uart_msg, "%02X", buf[j]);
+        HAL_UART_Transmit(&huart1, (uint8_t *)g_uart_msg, strlen(g_uart_msg), 1000);
+      }
+      PrintMsg("\n");
+      break;
+    }
+  }
+}
+
+// static HAL_StatusTypeDef K9F1G08U0E_My_HAL_NAND_Read_Page_8b(
+//   NAND_HandleTypeDef *hnand, NAND_AddressTypeDef *pAddress, uint8_t *pBuffer, uint32_t NumPageToRead)
+// {
+//   uint32_t index;
+//   uint32_t tickstart;
+//   uint32_t deviceAddress, numPagesRead = 0U, nandAddress, nbpages = NumPageToRead;
+//   uint8_t *buff = pBuffer;
+
+//   /* Check the NAND controller state */
+//   if (hnand->State == HAL_NAND_STATE_BUSY)
+//   {
+//     return HAL_BUSY;
+//   }
+//   else if (hnand->State == HAL_NAND_STATE_READY)
+//   {
+//     /* Process Locked */
+//     __HAL_LOCK(hnand);
+
+//     /* Update the NAND controller state */
+//     hnand->State = HAL_NAND_STATE_BUSY;
+
+//     /* Identify the device address */
+//     if (hnand->Init.NandBank == FSMC_NAND_BANK2)
+//     {
+//       deviceAddress = NAND_DEVICE1;
+//     }
+//     else
+//     {
+//       deviceAddress = NAND_DEVICE2;
+//     }
+
+//     /* NAND raw address calculation */
+//     nandAddress = ARRAY_ADDRESS(pAddress, hnand);
+
+//     /* Page(s) read loop */
+//     while ((nbpages != 0U) && (nandAddress < ((hnand->Config.BlockSize) * (hnand->Config.BlockNbr))))
+//     {
+//       /* Send read page command sequence */
+//       *(__IO uint8_t *)((uint32_t)(deviceAddress | CMD_AREA)) = NAND_CMD_AREA_A;
+//       __DSB();
+
+//       *(__IO uint8_t *)((uint32_t)(deviceAddress | ADDR_AREA)) = 0x00U;
+//       __DSB();
+//       *(__IO uint8_t *)((uint32_t)(deviceAddress | ADDR_AREA)) = 0x00U;
+//       __DSB();
+//       *(__IO uint8_t *)((uint32_t)(deviceAddress | ADDR_AREA)) = ADDR_1ST_CYCLE(nandAddress);
+//       __DSB();
+//       *(__IO uint8_t *)((uint32_t)(deviceAddress | ADDR_AREA)) = ADDR_2ND_CYCLE(nandAddress);
+//       __DSB();
+
+//       *(__IO uint8_t *)((uint32_t)(deviceAddress | ATTRIBUTE_AREA | CMD_AREA)) = NAND_CMD_AREA_TRUE1;
+//       __DSB();
+
+//       if (hnand->Config.ExtraCommandEnable == ENABLE)
+//       {
+//         /* Get tick */
+//         tickstart = HAL_GetTick();
+
+//         /* Read status until NAND is ready */
+//         while (HAL_NAND_Read_Status(hnand) != NAND_READY)
+//         {
+//           if ((HAL_GetTick() - tickstart) > NAND_WRITE_TIMEOUT)
+//           {
+//             /* Update the NAND controller state */
+//             hnand->State = HAL_NAND_STATE_ERROR;
+
+//             /* Process unlocked */
+//             __HAL_UNLOCK(hnand);
+
+//             return HAL_TIMEOUT;
+//           }
+//         }
+
+//         /* Go back to read mode */
+//         *(__IO uint8_t *)((uint32_t)(deviceAddress | CMD_AREA)) = ((uint8_t)0x00U);
+//         __DSB();
+//       }
+
+//       /* Get Data into Buffer */
+//       for (index = 0U; index < hnand->Config.PageSize; index++)
+//       {
+//         *buff = *(uint8_t *)deviceAddress;
+//         buff++;
+//       }
+
+//       /* Increment read pages number */
+//       numPagesRead++;
+
+//       /* Decrement pages to read */
+//       nbpages--;
+
+//       /* Increment the NAND address */
+//       nandAddress = (uint32_t)(nandAddress + 1U);
+//     }
+
+//     /* Update the NAND controller state */
+//     hnand->State = HAL_NAND_STATE_READY;
+
+//     /* Process unlocked */
+//     __HAL_UNLOCK(hnand);
+//   }
+//   else
+//   {
+//     return HAL_ERROR;
+//   }
+
+//   return HAL_OK;
+// }
+
+// ///////////
+
+// static void SetNandBlockUsed(uint32_t blk_addr)
+// {
+//   static char msg[100];
+//   sprintf(msg, "SetNandBlockUsed: blk_addr: %ld, table before[i]: 0x%X",
+//     blk_addr, g_nand_used_blocks_table[blk_addr / BITS_IN_BYTE]);
+//   HAL_UART_Transmit(&huart1, (uint8_t *)msg, strlen(msg), 1000);
+
+//   g_nand_used_blocks_table[blk_addr / BITS_IN_BYTE] |= (uint8_t)(1 << (blk_addr % 8));
+
+//   sprintf(msg, ", table after[i]: %0x",
+//     g_nand_used_blocks_table[blk_addr / BITS_IN_BYTE]);
+//   HAL_UART_Transmit(&huart1, (uint8_t *)msg, strlen(msg), 1000);
+// }
+
+// static void ClearNandBlockUsed(uint32_t blk_addr)
+// {
+//   g_nand_used_blocks_table[blk_addr / BITS_IN_BYTE] &= (uint8_t)(~(1 << (blk_addr % 8)));
+// }
+
+// //////////////
 
 // static HAL_StatusTypeDef K9F1G08U0E_Erase_Block(uint32_t nand_blk_addr)
 // {
