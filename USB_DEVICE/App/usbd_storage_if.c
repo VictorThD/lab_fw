@@ -879,6 +879,11 @@ int8_t STORAGE_GetMaxLun_FS(void)
 
 /* USER CODE BEGIN PRIVATE_FUNCTIONS_IMPLEMENTATION */
 
+HAL_StatusTypeDef NandStoreMetadata()
+{
+  return StoreNandMetadata(g_nand_metadata.hnand, &g_nand_metadata);
+}
+
 static HAL_StatusTypeDef K9F1G08U0E_Format(NAND_HandleTypeDef *hnand,
   NandMetadata *nand_metadata)
 {

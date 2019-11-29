@@ -30,6 +30,7 @@
 #include "uart_command_manager.h"
 #include "RegistersTemplate.hpp"
 #include "blinker.h"
+#include "usbd_storage_if.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -55,6 +56,12 @@ void helpHandlerFn(const FWT::tuple<void> &params) {
 
   HAL_UART_Transmit(&huart1, (uint8_t *)help_buf, strlen(help_buf), 1000);
 };
+
+void NandStoreMetadataHandlerFn(const FWT::tuple<void> &params)
+{
+  NandStoreMetadata();
+};
+
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -64,10 +71,12 @@ static unsigned char buff[64];
 static unsigned char tx_buff[64];
 
 auto blinkHandler = MakeCommandHandler<typeof(blinkHandlerFn), int>("blink", blinkHandlerFn);
+auto nandStoreMetadataHandler = MakeCommandHandler<typeof(NandStoreMetadataHandlerFn), void>("store", NandStoreMetadataHandlerFn);
 auto helpHandler = MakeCommandHandler<typeof(helpHandlerFn), void>("help", helpHandlerFn);
 
 ICmdProcessor *handler_ptrs[] = {
   &blinkHandler,
+  &nandStoreMetadataHandler,
   &helpHandler
 };
 

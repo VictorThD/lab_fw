@@ -32,6 +32,8 @@
 
 /* USER CODE BEGIN INCLUDE */
 
+#include "stm32f2xx_hal_def.h"
+
 /* USER CODE END INCLUDE */
 
 /** @addtogroup STM32_USB_OTG_DEVICE_LIBRARY
@@ -92,6 +94,8 @@
 extern USBD_StorageTypeDef USBD_Storage_Interface_fops_FS;
 
 /* USER CODE BEGIN EXPORTED_VARIABLES */
+
+HAL_StatusTypeDef NandStoreMetadata();
 
 /* USER CODE END EXPORTED_VARIABLES */
 
