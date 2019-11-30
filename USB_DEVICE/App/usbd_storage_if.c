@@ -327,22 +327,22 @@ static HAL_StatusTypeDef ReadOnePage(NandMetadata *nand_metadata,
 {
   HAL_StatusTypeDef status = HAL_OK;
 
-  // PrintMsg("Read one page. ");
+  PrintMsg("Read one page. ");
 
   uint32_t lba = storage_lba / LOGICAL_PAGES_IN_NAND_PAGE;
   uint32_t storage_lba_in_lba = storage_lba % LOGICAL_PAGES_IN_NAND_PAGE;
-  // sprintf(g_uart_msg, "storage_lba: %ld, lba: %ld, storage_lba_in_lba: %ld\n",
-  //   storage_lba, lba, storage_lba_in_lba);
-  // PrintMsg(g_uart_msg);
+  sprintf(g_uart_msg, "storage_lba: %ld, lba: %ld, storage_lba_in_lba: %ld\n",
+    storage_lba, lba, storage_lba_in_lba);
+  PrintMsg(g_uart_msg);
 
   NAND_AddressTypeDef nand_addr;
-  if (GetAddrTranslationTableNandAddr(nand_metadata, lba, &nand_addr) != 0)
-  {
-    return HAL_ERROR;
-  }
-  // LbaBlockAddrToNandAddr(nand_blk_addr, &hnand1, &nand_addr);
-  // PrintNandAddr(&nand_addr);
-  // PrintMsg("\n");
+  // if (GetAddrTranslationTableNandAddr(nand_metadata, lba, &nand_addr) != 0)
+  // {
+  //   return HAL_ERROR;
+  // }
+  LbaToNandAddr(nand_metadata->hnand, lba, &nand_addr);
+  PrintNandAddr(&nand_addr);
+  PrintMsg("\n");
 
   memset(g_nand_read_write_buffer, 0, NAND_PAGE_WITH_SPARE_AREA_SIZE);
 
@@ -358,9 +358,9 @@ static HAL_StatusTypeDef ReadOnePage(NandMetadata *nand_metadata,
 
   memcpy(buf, g_nand_read_write_buffer + storage_lba_in_lba * LOGICAL_PAGE_SIZE, LOGICAL_PAGE_SIZE);
 
-  // PrintNandBuffer(g_nand_read_write_buffer);
-  // sprintf(g_uart_msg, "Read bytes: %02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X\n", buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7], buf[8], buf[9], buf[10], buf[11], buf[12], buf[13], buf[14], buf[15], buf[16], buf[17], buf[18], buf[19]);
-  // PrintMsg(g_uart_msg);
+  PrintNandBuffer(g_nand_read_write_buffer);
+  sprintf(g_uart_msg, "Read bytes: %02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X\n", buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7], buf[8], buf[9], buf[10], buf[11], buf[12], buf[13], buf[14], buf[15], buf[16], buf[17], buf[18], buf[19]);
+  PrintMsg(g_uart_msg);
 
   // memset(g_nand_read_write_buffer, 0, NAND_PAGE_WITH_SPARE_AREA_SIZE);
 
@@ -677,11 +677,11 @@ int8_t STORAGE_Init_FS(uint8_t lun)
   // HAL_UART_Transmit(&huart1, (uint8_t *)g_uart_msg, strlen(g_uart_msg), 1000);
 
   NAND_ADDR_TRANSLATION_TABLE_ENTRY_TYPE* t = g_nand_metadata.att;
-  for (size_t i = 0; i < 5; i++)
-    t[i] = (NAND_ADDR_TRANSLATION_TABLE_ENTRY_TYPE)(i + 10);
-  for (size_t i = NAND_ADDR_TRANSLATION_TABLE_ENTRY_COUNT - 6;
-    i < NAND_ADDR_TRANSLATION_TABLE_ENTRY_COUNT; i++)
-    t[i] = (NAND_ADDR_TRANSLATION_TABLE_ENTRY_TYPE)(NAND_ADDR_TRANSLATION_TABLE_ENTRY_COUNT - i - 1 + 10);
+  // for (size_t i = 0; i < 5; i++)
+  //   t[i] = (NAND_ADDR_TRANSLATION_TABLE_ENTRY_TYPE)(i + 10);
+  // for (size_t i = NAND_ADDR_TRANSLATION_TABLE_ENTRY_COUNT - 6;
+  //   i < NAND_ADDR_TRANSLATION_TABLE_ENTRY_COUNT; i++)
+  //   t[i] = (NAND_ADDR_TRANSLATION_TABLE_ENTRY_TYPE)(NAND_ADDR_TRANSLATION_TABLE_ENTRY_COUNT - i - 1 + 10);
 
   sprintf(g_uart_msg, "Table before: %04X%04X%04X%04X%04X%04X%04X%04X%04X%04X %04X%04X%04X%04X%04X%04X%04X%04X%04X%04X\n",
           t[0], t[1], t[2], t[3], t[4], t[5], t[6], t[7], t[8], t[9],
@@ -690,11 +690,11 @@ int8_t STORAGE_Init_FS(uint8_t lun)
   PrintMsg(g_uart_msg);
 
   HAL_StatusTypeDef status = HAL_OK;
-  if ((status = LoadNandMetadata(&hnand1, &g_nand_metadata)) != HAL_OK)
-  {
-    sprintf(g_uart_msg, "LoadNandInnerConfiguration() failed. HAL status: %d\n", status);
-    PrintMsg(g_uart_msg);
-  }
+  // if ((status = LoadNandMetadata(&hnand1, &g_nand_metadata)) != HAL_OK)
+  // {
+  //   sprintf(g_uart_msg, "LoadNandInnerConfiguration() failed. HAL status: %d\n", status);
+  //   PrintMsg(g_uart_msg);
+  // }
   PrintMsg("free_page_addr ");
   PrintNandAddr(&g_nand_metadata.free_page_addr);
   PrintMsg("\n");
@@ -709,6 +709,13 @@ int8_t STORAGE_Init_FS(uint8_t lun)
           t[NAND_ADDR_TRANSLATION_TABLE_ENTRY_COUNT - 10], t[NAND_ADDR_TRANSLATION_TABLE_ENTRY_COUNT - 9], t[NAND_ADDR_TRANSLATION_TABLE_ENTRY_COUNT - 8], t[NAND_ADDR_TRANSLATION_TABLE_ENTRY_COUNT - 7], t[NAND_ADDR_TRANSLATION_TABLE_ENTRY_COUNT - 6],
           t[NAND_ADDR_TRANSLATION_TABLE_ENTRY_COUNT - 5], t[NAND_ADDR_TRANSLATION_TABLE_ENTRY_COUNT - 4], t[NAND_ADDR_TRANSLATION_TABLE_ENTRY_COUNT - 3], t[NAND_ADDR_TRANSLATION_TABLE_ENTRY_COUNT - 2], t[NAND_ADDR_TRANSLATION_TABLE_ENTRY_COUNT - 1]);
   PrintMsg(g_uart_msg);
+
+  uint8_t buf[512];
+  // ReadOnePage(&g_nand_metadata, 0, buf);
+  ReadOnePage(&g_nand_metadata, 0 * 64 * LOGICAL_PAGES_IN_NAND_PAGE, buf);
+  ReadOnePage(&g_nand_metadata, 1 * 64 * LOGICAL_PAGES_IN_NAND_PAGE, buf);
+  ReadOnePage(&g_nand_metadata, 2 * 64 * LOGICAL_PAGES_IN_NAND_PAGE, buf);
+  ReadOnePage(&g_nand_metadata, 1023 * 64 * LOGICAL_PAGES_IN_NAND_PAGE, buf);
 
 #endif
 
@@ -765,6 +772,7 @@ int8_t STORAGE_Read_FS(uint8_t lun, uint8_t *buf, uint32_t blk_addr, uint16_t bl
 {
   /* USER CODE BEGIN 6 */
 
+  return HAL_OK;
   // if (g_stage == 0 || g_stage == 2)
   // {
   //   sprintf(g_uart_msg, "Stage read\n");
@@ -829,6 +837,8 @@ int8_t STORAGE_Read_FS(uint8_t lun, uint8_t *buf, uint32_t blk_addr, uint16_t bl
 int8_t STORAGE_Write_FS(uint8_t lun, uint8_t *buf, uint32_t blk_addr, uint16_t blk_len)
 {
   /* USER CODE BEGIN 7 */
+
+  return HAL_OK;
   // sprintf(g_uart_msg, "Write FS lun: %d, blk_addr: %ld, blk_len=%d\n", lun, blk_addr, blk_len);
   // PrintMsg(g_uart_msg);
 
@@ -1347,7 +1357,8 @@ static int SetAddrTranslationTableNandAddr(
   {
     sprintf(g_uart_msg, "SetAddrTranlationTableNandAddr() error: "
       "lba is out of range. lba: %ld, max_lba: %d\n",
-      lba, NAND_USED_PAGE_NUMBER);
+      lba, NAND_USED_PAGE_NUMBER - 1);
+    PrintMsg(g_uart_msg);
 
     return 1;
   }
@@ -1376,7 +1387,8 @@ static int GetAddrTranslationTableNandAddr(
   {
     sprintf(g_uart_msg, "GetAddrTranlationTableNandAddr() error: "
       "lba is out of range. lba: %ld, max_lba: %d\n",
-      lba, NAND_USED_PAGE_NUMBER);
+      lba, NAND_USED_PAGE_NUMBER - 1);
+    PrintMsg(g_uart_msg);
 
     return 1;
   }

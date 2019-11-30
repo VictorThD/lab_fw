@@ -40,8 +40,8 @@ void MX_FSMC_Init(void)
   hnand1.Init.MemoryDataWidth = FSMC_NAND_PCC_MEM_BUS_WIDTH_8;
   hnand1.Init.EccComputation = FSMC_NAND_ECC_DISABLE;
   hnand1.Init.ECCPageSize = FSMC_NAND_ECC_PAGE_SIZE_256BYTE;
-  hnand1.Init.TCLRSetupTime = 2;
-  hnand1.Init.TARSetupTime = 2;
+  hnand1.Init.TCLRSetupTime = 0;
+  hnand1.Init.TARSetupTime = 0;
   /* hnand1.Config */
   hnand1.Config.PageSize = 2048;
   hnand1.Config.SpareAreaSize = 64;
@@ -49,40 +49,19 @@ void MX_FSMC_Init(void)
   hnand1.Config.BlockNbr = 1024;
   hnand1.Config.PlaneNbr = 1;
   hnand1.Config.PlaneSize = 1024;
-  hnand1.Config.ExtraCommandEnable = DISABLE;
-
-  // uint8_t b = 2;
+  hnand1.Config.ExtraCommandEnable = ENABLE;
 
   /* ComSpaceTiming */
-  // По tCS, tCLS, tALS, tDS, ..H
-  // ComSpaceTiming.SetupTime = 0;
-  // ComSpaceTiming.WaitSetupTime = 1;
-  // ComSpaceTiming.HoldSetupTime = 1;
-  // ComSpaceTiming.HiZSetupTime = 0;
-  // Учитывая tRR, tCEA/tREA и tRHOH
-  // ComSpaceTiming.SetupTime = 2;
-  // ComSpaceTiming.WaitSetupTime = 2;
-  // ComSpaceTiming.HoldSetupTime = 1;
-  // ComSpaceTiming.HiZSetupTime = 0;
-
-  // ComSpaceTiming.SetupTime = b;
-  // ComSpaceTiming.WaitSetupTime = b;
-  // ComSpaceTiming.HoldSetupTime = b;
-  // ComSpaceTiming.HiZSetupTime = b - 1;
-  ComSpaceTiming.SetupTime = 201;
-  ComSpaceTiming.WaitSetupTime = 201;
-  ComSpaceTiming.HoldSetupTime = 201;
-  ComSpaceTiming.HiZSetupTime = 200;
+  ComSpaceTiming.SetupTime = 0;     // 2 tRR = min 20 ns = 3 * 8.33 = SET + 1. SET = 2
+  ComSpaceTiming.WaitSetupTime = 2; // 2 tREA = max 20 ns = 3 * 8.33 = WAIT + 1. WAIT = 2
+  ComSpaceTiming.HoldSetupTime = 0; // 1 tCH = min 5 ns = 1 * 8.33 = HOLD. HOLD = 1
+  ComSpaceTiming.HiZSetupTime = 0;  // 0
 
   /* AttSpaceTiming */
   // AttSpaceTiming.SetupTime = 252;
   // AttSpaceTiming.WaitSetupTime = 252;
   // AttSpaceTiming.HoldSetupTime = 252;
   // AttSpaceTiming.HiZSetupTime = 252;
-  AttSpaceTiming.SetupTime = 2;
-  AttSpaceTiming.WaitSetupTime = 2;
-  AttSpaceTiming.HoldSetupTime = 1;
-  AttSpaceTiming.HiZSetupTime = 0;
 
   if (HAL_NAND_Init(&hnand1, &ComSpaceTiming, &AttSpaceTiming) != HAL_OK)
   {
