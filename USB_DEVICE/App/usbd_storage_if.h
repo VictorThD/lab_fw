@@ -99,7 +99,7 @@ HAL_StatusTypeDef NandStoreMetadata();
 
 // Print data of the page of address addr.
 // Start printing from offset byte of the page and print count bytes
-HAL_StatusTypeDef NandPrintPageData(const NAND_AddressTypeDef *nand_addr,
+HAL_StatusTypeDef NandPrintPageData(NAND_AddressTypeDef *nand_addr,
   size_t offset, size_t count);
 
 /* USER CODE END EXPORTED_VARIABLES */
