@@ -31,6 +31,7 @@
 #include "RegistersTemplate.hpp"
 #include "blinker.h"
 #include "usbd_storage_if.h"
+#include "stm32f2xx_hal_nand.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -62,6 +63,15 @@ void NandStoreMetadataHandlerFn(const FWT::tuple<void> &params)
   NandStoreMetadata();
 };
 
+void NandPrintPageDataHandlerFn(const FWT::tuple<uint16_t, uint16_t, size_t, size_t> &params)
+{
+  NAND_AddressTypeDef nand_addr = {0};
+  nand_addr.Block = FWT::tuple_at<0>::get(params);
+  nand_addr.Page = FWT::tuple_at<1>::get(params);
+  NandPrintPageData(&nand_addr,
+    FWT::tuple_at<2>::get(params), FWT::tuple_at<3>::get(params));
+};
+
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -72,11 +82,15 @@ static unsigned char tx_buff[64];
 
 auto blinkHandler = MakeCommandHandler<typeof(blinkHandlerFn), int>("blink", blinkHandlerFn);
 auto nandStoreMetadataHandler = MakeCommandHandler<typeof(NandStoreMetadataHandlerFn), void>("store", NandStoreMetadataHandlerFn);
+auto nandPrintPageDataHandler =
+  MakeCommandHandler<typeof(NandPrintPageDataHandlerFn), uint16_t, uint16_t, size_t, size_t>
+    ("ppd", NandPrintPageDataHandlerFn);
 auto helpHandler = MakeCommandHandler<typeof(helpHandlerFn), void>("help", helpHandlerFn);
 
 ICmdProcessor *handler_ptrs[] = {
   &blinkHandler,
   &nandStoreMetadataHandler,
+  &nandPrintPageDataHandler,
   &helpHandler
 };
 

@@ -2,6 +2,7 @@
 
 #include "templates.h"
 #include "types.h"
+#include "cstdint"
 
 struct ICmdProcessor {    
     virtual bool onCommand(const char *command, size_t length) = 0; 
@@ -14,6 +15,9 @@ template <typename T> void fetch_param(const char *pstr, size_t len, T &param)
 
 template <> void fetch_param(const char *pstr, size_t len, FWT::str &str);
 template <> void fetch_param(const char *pstr, size_t len, int &num);
+template <> void fetch_param(const char *pstr, size_t len, uint16_t &num);
+template <> void fetch_param(const char *pstr, size_t len, size_t &num);
+
 template <typename Tail>
     void FillParamTuple(const char *params, size_t length, FWT::tuple<Tail> &tup)
 {

@@ -301,6 +301,7 @@ static void PrintNandAddr(const NAND_AddressTypeDef *nand_addr);
 // static void PrintNandOpStatus(NAND_AddressTypeDef *nand_addr);
 static void PrintNandBuffer(const uint8_t *buf);
 static void PrintNandBufferSpareArea(const uint8_t *buf);
+static void PrintBuffer(const uint8_t *buf, size_t buf_size);
 
 /* USER CODE END PRIVATE_FUNCTIONS_DECLARATION */
 
@@ -651,7 +652,7 @@ int8_t STORAGE_Init_FS(uint8_t lun)
   PrintMsg(g_uart_msg);
 
   HAL_StatusTypeDef status = HAL_OK;
-  if ((status = LoadNandMetadata(&hnand1, &g_nand_metadata)) != HAL_OK)
+  // if ((status = LoadNandMetadata(&hnand1, &g_nand_metadata)) != HAL_OK)
   {
     sprintf(g_uart_msg, "LoadNandInnerConfiguration() failed. HAL status: %d\n", status);
     PrintMsg(g_uart_msg);
@@ -742,7 +743,7 @@ int8_t STORAGE_Read_FS(uint8_t lun, uint8_t *buf, uint32_t blk_addr, uint16_t bl
   // }
   // g_stage++;
 
-  // return (USBD_OK);
+  return (USBD_OK);
 
   sprintf(g_uart_msg, "Read FS lun: %d, blk_addr: %ld, blk_len=%d\n", lun, blk_addr, blk_len);
   PrintMsg(g_uart_msg);
@@ -879,9 +880,51 @@ int8_t STORAGE_GetMaxLun_FS(void)
 
 /* USER CODE BEGIN PRIVATE_FUNCTIONS_IMPLEMENTATION */
 
+
 HAL_StatusTypeDef NandStoreMetadata()
 {
   return StoreNandMetadata(g_nand_metadata.hnand, &g_nand_metadata);
+}
+
+HAL_StatusTypeDef NandPrintPageData(const NAND_AddressTypeDef *nand_addr,
+  size_t offset, size_t count)
+{
+  size_t page_size = NAND_PAGE_SIZE;
+
+  // assert
+  if (offset >= page_size - 1)
+  {
+    sprintf(g_uart_msg, "NandPrintPageData() error. No data to print."
+      " offset >= (page size - 1), offset: %d, page size: %d\n", offset, page_size);
+    PrintMsg(g_uart_msg);
+
+    return HAL_ERROR;
+  }
+
+  HAL_StatusTypeDef status = HAL_OK;
+
+  if ((status = HAL_NAND_Read_Page_8b(g_nand_metadata.hnand, nand_addr,
+      g_nand_read_write_buffer, 1)) != HAL_OK)
+  {
+    sprintf(g_uart_msg, "NandPrintPageData() error."
+      " HAL_NAND_Read_Page_8b status: %d\n", status);
+    PrintMsg(g_uart_msg);
+
+    return status;
+  }
+  // HAL_StatusTypeDef state = K9F1G08U0E_My_HAL_NAND_Read_Page_8b(&hnand1, &nand_addr, g_nand_read_write_buffer, 1);
+  sprintf(g_uart_msg, "Page data: ");
+  PrintMsg(g_uart_msg);
+  PrintNandAddr(nand_addr);
+  size_t print_count = ((offset + count) <= page_size)
+    ? count : (page_size - offset);
+  sprintf(g_uart_msg, ", offset: %d, count: %d, print_count: %d, data: ",
+    offset, count, print_count);
+  PrintMsg(g_uart_msg);
+  PrintBuffer(&g_nand_read_write_buffer[offset], print_count);
+  PrintMsg("\n");
+
+  return HAL_OK;
 }
 
 static HAL_StatusTypeDef K9F1G08U0E_Format(NAND_HandleTypeDef *hnand,
@@ -1440,6 +1483,21 @@ static void PrintNandBufferSpareArea(const uint8_t *buf)
     }
   }
 }
+
+static void PrintBuffer(const uint8_t *buf, size_t buf_size)
+{
+  for (size_t i = 0; i < buf_size; i++)
+  {
+    if (i % 16 == 0)
+      PrintMsg("\n");
+    else if (i % 8 == 0)
+      PrintMsg(" ");
+
+    sprintf(g_uart_msg, "%02X ", buf[i]);
+    PrintMsg(g_uart_msg);
+  }
+}
+
 
 // static HAL_StatusTypeDef K9F1G08U0E_My_HAL_NAND_Read_Page_8b(
 //   NAND_HandleTypeDef *hnand, NAND_AddressTypeDef *pAddress, uint8_t *pBuffer, uint32_t NumPageToRead)
