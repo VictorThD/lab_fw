@@ -95,12 +95,14 @@ extern USBD_StorageTypeDef USBD_Storage_Interface_fops_FS;
 
 /* USER CODE BEGIN EXPORTED_VARIABLES */
 
+HAL_StatusTypeDef NandHardFormat();
+HAL_StatusTypeDef NandResetMetadata();
 HAL_StatusTypeDef NandStoreMetadata();
-
 // Print data of the page of address addr.
 // Start printing from offset byte of the page and print count bytes
 HAL_StatusTypeDef NandPrintPageData(NAND_AddressTypeDef *nand_addr,
   size_t offset, size_t count);
+HAL_StatusTypeDef NandEraseBlocks(uint16_t start_block_num, size_t count);
 
 /* USER CODE END EXPORTED_VARIABLES */
 

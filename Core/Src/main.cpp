@@ -53,9 +53,24 @@ void blinkHandlerFn(const FWT::tuple<int> &params) {
 void helpHandlerFn(const FWT::tuple<void> &params) {
   static const char help_buf[] = "Commands: \r\n\
     blink <0|1> - blinker on/off\r\n\
-    help - this memo\r\n";
+    help - this memo\r\n\
+    format - NAND hard format (with reset NAND state)\r\n\
+    reset - reset NAND state\r\n\
+    hold - save NAND state\r\n\
+    read <block num> <page num> <offset> <count> - read count bytes from NAND page starting with offset\r\n\
+    erase <block num> <count> - erase count NAND blocks starting with block num\r\n";
 
   HAL_UART_Transmit(&huart1, (uint8_t *)help_buf, strlen(help_buf), 1000);
+};
+
+void NandHardFormatHandlerFn(const FWT::tuple<void> &params)
+{
+  NandHardFormat();
+};
+
+void NandResetMetadataHandlerFn(const FWT::tuple<void> &params)
+{
+  NandResetMetadata();
 };
 
 void NandStoreMetadataHandlerFn(const FWT::tuple<void> &params)
@@ -72,6 +87,13 @@ void NandPrintPageDataHandlerFn(const FWT::tuple<uint16_t, uint16_t, size_t, siz
     FWT::tuple_at<2>::get(params), FWT::tuple_at<3>::get(params));
 };
 
+void NandEraseBlocksHandlerFn(const FWT::tuple<uint16_t, size_t> &params)
+{
+  NandEraseBlocks(FWT::tuple_at<0>::get(params),
+    FWT::tuple_at<1>::get(params));
+};
+
+
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -81,17 +103,28 @@ static unsigned char buff[64];
 static unsigned char tx_buff[64];
 
 auto blinkHandler = MakeCommandHandler<typeof(blinkHandlerFn), int>("blink", blinkHandlerFn);
-auto nandStoreMetadataHandler = MakeCommandHandler<typeof(NandStoreMetadataHandlerFn), void>("store", NandStoreMetadataHandlerFn);
+auto helpHandler = MakeCommandHandler<typeof(helpHandlerFn), void>("help", helpHandlerFn);
+auto nandHardFormatHandler = MakeCommandHandler<typeof(NandHardFormatHandlerFn), void>
+  ("format", NandHardFormatHandlerFn);
+auto nandResetMetadataHandler = MakeCommandHandler<typeof(NandResetMetadataHandlerFn), void>
+  ("reset", NandResetMetadataHandlerFn);
+auto nandStoreMetadataHandler = MakeCommandHandler<typeof(NandStoreMetadataHandlerFn), void>
+  ("hold", NandStoreMetadataHandlerFn);
 auto nandPrintPageDataHandler =
   MakeCommandHandler<typeof(NandPrintPageDataHandlerFn), uint16_t, uint16_t, size_t, size_t>
-    ("ppd", NandPrintPageDataHandlerFn);
-auto helpHandler = MakeCommandHandler<typeof(helpHandlerFn), void>("help", helpHandlerFn);
+    ("read", NandPrintPageDataHandlerFn);
+auto nandEraseBlocksHandler =
+  MakeCommandHandler<typeof(NandEraseBlocksHandlerFn), uint16_t, size_t>
+    ("erase", NandEraseBlocksHandlerFn);
 
 ICmdProcessor *handler_ptrs[] = {
   &blinkHandler,
+  &helpHandler,
+  &nandHardFormatHandler,
+  &nandResetMetadataHandler,
   &nandStoreMetadataHandler,
   &nandPrintPageDataHandler,
-  &helpHandler
+  &nandEraseBlocksHandler
 };
 
 UARTCommandManager Mgr(handler_ptrs, sizeof(handler_ptrs) / sizeof(ICmdProcessor *));
