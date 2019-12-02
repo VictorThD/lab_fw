@@ -1,0 +1,31 @@
+OpenDocument="main.cpp", FilePath="D:/Work/Projects/CortexM3Hynix/Source/lab_fw/Core/Src/main.cpp", Line=152
+OpenDocument="startup_stm32f207xx.s", FilePath="D:/Work/Projects/CortexM3Hynix/Source/lab_fw/startup_stm32f207xx.s", Line=70
+OpenDocument="usbd_storage_if.c", FilePath="D:/Work/Projects/CortexM3Hynix/Source/lab_fw/USB_DEVICE/App/usbd_storage_if.c", Line=174
+OpenDocument="system_stm32f2xx.c", FilePath="D:/Work/Projects/CortexM3Hynix/Source/lab_fw/Core/Src/system_stm32f2xx.c", Line=143
+OpenDocument="stm32f2xx_hal.c", FilePath="c:/Users/VictorTD/STM32Cube/Repository/STM32Cube_FW_F2_V1.8.0/Drivers/STM32F2xx_HAL_Driver/Src/stm32f2xx_hal.c", Line=311
+OpenToolbar="File", Floating=0, x=1, y=0
+OpenToolbar="View", Floating=0, x=2, y=0
+OpenToolbar="Debug", Floating=0, x=0, y=0
+OpenToolbar="Breakpoints", Floating=0, x=3, y=0
+OpenWindow="Call Stack", DockArea=BOTTOM, x=3, y=0, w=83, h=122, FilterBarShown=0
+OpenWindow="Registers 1", DockArea=LEFT, x=0, y=1, w=250, h=174, FilterBarShown=0, FilteredItems=[], RefreshRate=1, ToolbarShown=1
+OpenWindow="Source Files", DockArea=LEFT, x=0, y=0, w=250, h=229, FilterBarShown=1
+OpenWindow="Disassembly", DockArea=RIGHT, x=0, y=0, w=203, h=105, FilterBarShown=0, ExecCountersShown=0
+OpenWindow="Source", x=0, y=0, w=0, h=0, FilterBarShown=0, ExecCountersShown=0
+OpenWindow="Memory 1", DockArea=BOTTOM, x=4, y=0, w=192, h=122, FilterBarShown=0, EditorAddress=0x0
+OpenWindow="Global Data", DockArea=RIGHT, x=0, y=2, w=203, h=100, FilterBarShown=1
+OpenWindow="Local Data", DockArea=RIGHT, x=0, y=3, w=203, h=97, FilterBarShown=0
+OpenWindow="Watched Data", DockArea=RIGHT, x=0, y=1, w=203, h=99, FilterBarShown=0
+OpenWindow="Data Graph", DockArea=BOTTOM, x=0, y=0, w=198, h=122, FilterBarShown=0, VisibleTab=2, SamplingFreq=1 kHz, ClearEvent=RESUME, LegendShown=1, ToolbarShown=1, UniformSampleSpacing=0, PinCursor=-1, TimePerDiv=1000000
+OpenWindow="Console", DockArea=BOTTOM, x=2, y=0, w=126, h=122, FilterBarShown=0
+OpenWindow="J-Link Control Panel", DockArea=BOTTOM, x=1, y=0, w=132, h=122, FilterBarShown=0
+TableHeader="Global Data", SortCol="Name", SortOrder="ASCENDING", VisibleCols=["Name";"Value";"Location";"Size";"Type";"Access";"Scope"], ColWidths=[115;100;65;44;48;27;224]
+TableHeader="Watched Data", SortCol="Expression", SortOrder="ASCENDING", VisibleCols=["Expression";"Value";"Location";"Refresh";"Access"], ColWidths=[64;37;110;50;45]
+TableHeader="Local Data", SortCol="Name", SortOrder="ASCENDING", VisibleCols=["Name";"Value";"Location";"Size";"Type";"Access";"Scope"], ColWidths=[94;289;86;44;48;58;54]
+TableHeader="Call Stack", SortCol="Function", SortOrder="ASCENDING", VisibleCols=["Function";"Stack Frame";"Source";"PC";"Return Address";"Stack Used"], ColWidths=[210;112;164;77;168;65]
+TableHeader="Source Files", SortCol="File", SortOrder="ASCENDING", VisibleCols=["File";"Status";"Size";"#Insts";"Path"], ColWidths=[186;56;44;57;860]
+TableHeader="DataGraphSamples", SortCol="Index", SortOrder="ASCENDING", VisibleCols=["Index";"Time                    "], ColWidths=[77;127]
+TableHeader="Data Graph", SortCol="Expression", SortOrder="ASCENDING", VisibleCols=["Expression";"Type";"Value";"Min";"Max";"Average";"# Changes";"Min. Change";"Max. Change"], ColWidths=[77;48;50;41;45;66;78;85;89]
+TableHeader="tableWidgetSamples", SortCol="Index", SortOrder="ASCENDING", VisibleCols=["Index";"Time";"Channel 0"], ColWidths=[72;102;108]
+TableHeader="Registers 1", SortCol="Name", SortOrder="ASCENDING", VisibleCols=["Auto";"Name";"Value";"Description"], ColWidths=[35;137;129;224]
+WatchedExpression="hwstatus"
