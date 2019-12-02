@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "D:\\Work\\Projects\\CortexM3Hynix\\Source\\lab_fw"
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"usbd_storage_if.h": "c",
+			"usbd_msc.h": "c",
+			"xmemory": "c"
+		}
+	}
+}
